@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16
+    env_file: .env
+    ports:
+      - "5432:5432"
+    # ボリュームをコンテナのどこに繋げるか
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # データベースの準備が本当に終わったのか定期的に確認する仕組み
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"] 
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    
+  backend:
+    build: ./backend
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on: # dbが完全に準備OKになってから起動してねという指示
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+  
+  frontend:
+    # buildは指定のDockerfileを使えということ
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules #このフォルダはDockerの中で独立して管理させる
+    depends_on:
+      - backend
+    # フロントエンドにバックエンドにお願いするときの番号を教える
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+
+# このボリュームをDockerに管理してもらうという宣言。この宣言がないとDockerがボリュームを認識できない
+volumes:
+  postgres_data:
