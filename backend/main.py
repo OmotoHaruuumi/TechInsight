@@ -1,5 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from database import engine, Base
+from routers import articles
+
+# models.pyで定義したテーブルがDBに存在しない場合自動で作成する
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="TechInsight API",
@@ -17,6 +22,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# articles.pyで定義したルーターを登録
+app.include_router(articles.router, prefix="/api/v1")
 
 # ヘルスチェック用のエンドポイント
 @app.get("/health")
