@@ -25,6 +25,3 @@ Thumbs.db
 #IDE
 .vscode/
 .idea/
-
-#元のデータ
-*.csv
