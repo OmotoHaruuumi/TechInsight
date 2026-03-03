@@ -83,7 +83,9 @@ def update_article(
     if db_article is None:
         raise HTTPException(status_code=404, detail="記事が見つかりません")
 
+    # 送られてきたデータだけの辞書を作る
     update_data = article.model_dump(exclude_unset=True)
+    # 送られてきたデータ以外はそのまま
     for key, value in update_data.items():
         setattr(db_article, key, value)
 

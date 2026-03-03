@@ -21,6 +21,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - ./articles.csv:/app/../articles.csv # ホストのarticles.csvをコンテナの/app/../articles.csvにマウント
     depends_on: # dbが完全に準備OKになってから起動してねという指示
       db:
         condition: service_healthy

@@ -12,5 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ソースコードをコピー
 COPY . .
 
-# --reloadでコード変更を自動検知して再起動（開発用）
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# entrypoint.shに実行権限を付与
+RUN chmod +x entrypoint.sh
+
+# entrypoint.shを起動時に実行
+CMD ["./entrypoint.sh"]
