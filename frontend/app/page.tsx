@@ -11,6 +11,7 @@ import {
   searchArticles,
   getEmbeddingStatus,
   getCategories,
+  getAuthors,
 } from '@/lib/api'
 import ArticleCard from '@/app/components/ArticleCard'
 import ArticleModal from '@/app/components/ArticleModal'
@@ -40,6 +41,10 @@ export default function Home() {
   const [categories, setCategories] = useState<string[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
 
+  {/* 著者フィルターの状態 */}
+  const [authors, setAuthors] = useState<string[]>([])
+  const [selectedAuthor, setSelectedAuthor] = useState<string | null>(null)
+
   {/* 並べ替えの状態 */}
   const [sortBy, setSortBy] = useState('created_at')
   const [sortOrder, setSortOrder] = useState('desc')
@@ -55,10 +60,10 @@ export default function Home() {
   const PAGE_SIZE = 20
 
   {/* 記事一覧を取得する */}
-  const fetchArticles = useCallback(async (currentPage: number, category: string | null, sb: string, so: string) => {
+  const fetchArticles = useCallback(async (currentPage: number, category: string | null, author: string | null, sb: string, so: string) => {
     setIsLoading(true)
     try {
-      const data = await getArticles(currentPage, PAGE_SIZE, category ?? undefined, undefined, undefined, sb, so)
+      const data = await getArticles(currentPage, PAGE_SIZE, category ?? undefined, author ?? undefined, undefined, sb, so)
       setArticles(data.articles)
       setTotal(data.total)
       setSearchScores({})
@@ -101,13 +106,14 @@ export default function Home() {
     query: string,
     currentPage: number,
     category: string | null,
+    author: string | null,
     sb: string,
     so: string,
     to: boolean,
   ) => {
     setIsLoading(true)
     try {
-      const data = await getArticles(currentPage, PAGE_SIZE, category ?? undefined, undefined, query, sb, so, to)
+      const data = await getArticles(currentPage, PAGE_SIZE, category ?? undefined, author ?? undefined, query, sb, so, to)
       setArticles(data.articles)
       setTotalHits(data.total)
       setSearchScores({})
@@ -124,27 +130,32 @@ export default function Home() {
     getCategories().then(setCategories).catch(console.error)
   }, [])
 
-  {/* 初回レンダリング時にカテゴリ一覧を取得する */}
+  const refreshAuthors = useCallback(() => {
+    getAuthors().then(setAuthors).catch(console.error)
+  }, [])
+
+  {/* 初回レンダリング時にカテゴリ・著者一覧を取得する */}
   useEffect(() => {
     refreshCategories()
-  }, [refreshCategories])
+    refreshAuthors()
+  }, [refreshCategories, refreshAuthors])
 
-  {/* 初回レンダリング・ページ・カテゴリ・ソート変更時に記事を取得する */}
+  {/* 初回レンダリング・ページ・カテゴリ・著者・ソート変更時に記事を取得する */}
   useEffect(() => {
     if (!isSearchMode) {
-      fetchArticles(page, selectedCategory, sortBy, sortOrder)
+      fetchArticles(page, selectedCategory, selectedAuthor, sortBy, sortOrder)
     }
-  }, [page, fetchArticles, isSearchMode, selectedCategory, sortBy, sortOrder])
+  }, [page, fetchArticles, isSearchMode, selectedCategory, selectedAuthor, sortBy, sortOrder])
 
   {/* 検索ページが変わったとき */}
   useEffect(() => {
     if (!isSearchMode || !searchQuery) return
     if (searchType === 'keyword') {
-      fetchKeywordResults(searchQuery, searchPage, selectedCategory, sortBy, sortOrder, titleOnly)
+      fetchKeywordResults(searchQuery, searchPage, selectedCategory, selectedAuthor, sortBy, sortOrder, titleOnly)
     } else if (searchType === 'semantic') {
       fetchSearchResults(searchQuery, searchThreshold, searchPage, selectedCategory)
     }
-  }, [searchPage, isSearchMode, searchQuery, searchType, searchThreshold, selectedCategory, sortBy, sortOrder, titleOnly, fetchKeywordResults, fetchSearchResults])
+  }, [searchPage, isSearchMode, searchQuery, searchType, searchThreshold, selectedCategory, selectedAuthor, sortBy, sortOrder, titleOnly, fetchKeywordResults, fetchSearchResults])
 
   {/* 5秒ごとにembedding進捗を自動更新する */}
   useEffect(() => {
@@ -177,7 +188,7 @@ export default function Home() {
     setIsSearchMode(true)
 
     if (type === 'keyword') {
-      await fetchKeywordResults(query, 1, selectedCategory, sortBy, sortOrder, to)
+      await fetchKeywordResults(query, 1, selectedCategory, selectedAuthor, sortBy, sortOrder, to)
     } else {
       await fetchSearchResults(query, threshold, 1, selectedCategory)
     }
@@ -190,13 +201,30 @@ export default function Home() {
     setSearchPage(1)
     if (isSearchMode && searchQuery) {
       if (searchType === 'keyword') {
-        fetchKeywordResults(searchQuery, 1, category, sortBy, sortOrder, titleOnly)
+        fetchKeywordResults(searchQuery, 1, category, selectedAuthor, sortBy, sortOrder, titleOnly)
       } else if (searchType === 'semantic') {
         fetchSearchResults(searchQuery, searchThreshold, 1, category)
       }
     } else {
       setIsSearchMode(false)
-      fetchArticles(1, category, sortBy, sortOrder)
+      fetchArticles(1, category, selectedAuthor, sortBy, sortOrder)
+    }
+  }
+
+  {/* 著者選択処理 */}
+  const handleAuthorSelect = (author: string | null) => {
+    setSelectedAuthor(author)
+    setPage(1)
+    setSearchPage(1)
+    if (isSearchMode && searchQuery) {
+      if (searchType === 'keyword') {
+        fetchKeywordResults(searchQuery, 1, selectedCategory, author, sortBy, sortOrder, titleOnly)
+      } else if (searchType === 'semantic') {
+        fetchSearchResults(searchQuery, searchThreshold, 1, selectedCategory)
+      }
+    } else {
+      setIsSearchMode(false)
+      fetchArticles(1, selectedCategory, author, sortBy, sortOrder)
     }
   }
 
@@ -207,7 +235,7 @@ export default function Home() {
     setSearchType(null)
     setPage(1)
     setSearchPage(1)
-    fetchArticles(1, selectedCategory, sortBy, sortOrder)
+    fetchArticles(1, selectedCategory, selectedAuthor, sortBy, sortOrder)
   }
 
   {/* 並べ替え変更処理 */}
@@ -217,9 +245,9 @@ export default function Home() {
     setPage(1)
     setSearchPage(1)
     if (isSearchMode && searchType === 'keyword' && searchQuery) {
-      fetchKeywordResults(searchQuery, 1, selectedCategory, newSortBy, newSortOrder, titleOnly)
+      fetchKeywordResults(searchQuery, 1, selectedCategory, selectedAuthor, newSortBy, newSortOrder, titleOnly)
     } else if (!isSearchMode || searchType !== 'semantic') {
-      fetchArticles(1, selectedCategory, newSortBy, newSortOrder)
+      fetchArticles(1, selectedCategory, selectedAuthor, newSortBy, newSortOrder)
     }
   }
 
@@ -233,7 +261,8 @@ export default function Home() {
       setSearchQuery('')
       setPage(1)
       refreshCategories()
-      fetchArticles(1, selectedCategory, sortBy, sortOrder)
+      refreshAuthors()
+      fetchArticles(1, selectedCategory, selectedAuthor, sortBy, sortOrder)
     } catch (error) {
       console.error('記事の作成に失敗しました', error)
     } finally {
@@ -250,7 +279,8 @@ export default function Home() {
       setEditArticle(null)
       setSelectedArticle(null)
       refreshCategories()
-      fetchArticles(page, selectedCategory, sortBy, sortOrder)
+      refreshAuthors()
+      fetchArticles(page, selectedCategory, selectedAuthor, sortBy, sortOrder)
     } catch (error) {
       console.error('記事の更新に失敗しました', error)
     } finally {
@@ -266,7 +296,8 @@ export default function Home() {
       await deleteArticle(id)
       setSelectedArticle(null)
       refreshCategories()
-      fetchArticles(page, selectedCategory, sortBy, sortOrder)
+      refreshAuthors()
+      fetchArticles(page, selectedCategory, selectedAuthor, sortBy, sortOrder)
     } catch (error) {
       console.error('記事の削除に失敗しました', error)
     } finally {
@@ -305,7 +336,7 @@ export default function Home() {
 
         {/* カテゴリフィルター */}
         {categories.length > 0 && (
-          <div className="mb-4 flex flex-wrap gap-2">
+          <div className="mb-2 flex flex-wrap gap-2">
             <button
               onClick={() => handleCategorySelect(null)}
               className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
@@ -327,6 +358,36 @@ export default function Home() {
                 }`}
               >
                 {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 著者フィルター */}
+        {authors.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2 items-center">
+            <span className="text-sm text-gray-500 mr-1">著者:</span>
+            <button
+              onClick={() => handleAuthorSelect(null)}
+              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                selectedAuthor === null
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              すべて
+            </button>
+            {authors.map((author) => (
+              <button
+                key={author}
+                onClick={() => handleAuthorSelect(author)}
+                className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                  selectedAuthor === author
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {author}
               </button>
             ))}
           </div>

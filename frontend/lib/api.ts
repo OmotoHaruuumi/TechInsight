@@ -63,6 +63,11 @@ export async function getCategories(): Promise<string[]> {
   return fetchAPI<string[]>('/articles/categories')
 }
 
+// 著者一覧取得
+export async function getAuthors(): Promise<string[]> {
+  return fetchAPI<string[]>('/articles/authors')
+}
+
 // 記事1件取得
 export async function getArticle(id: number): Promise<Article> {
   return fetchAPI<Article>(`/articles/${id}`)

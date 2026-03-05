@@ -89,6 +89,16 @@ def get_categories(db: Session = Depends(get_db)):
              .all()
     return [r[0] for r in rows]
 
+# 著者一覧取得（/{article_id}より前に定義する必要がある）
+@router.get("/authors", response_model=List[str])
+def get_authors(db: Session = Depends(get_db)):
+    rows = db.query(Article.author)\
+             .filter(Article.deleted_at == None)\
+             .filter(Article.author != None)\
+             .distinct()\
+             .all()
+    return [r[0] for r in rows]
+
 # 記事1件取得
 @router.get("/{article_id}", response_model=ArticleResponse)
 def get_article(article_id: int, db: Session = Depends(get_db)):
