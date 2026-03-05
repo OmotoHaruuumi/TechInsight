@@ -18,6 +18,7 @@
 | GET | `/api/v1/articles` | 記事一覧取得 |
 | POST | `/api/v1/articles` | 記事作成 |
 | GET | `/api/v1/articles/categories` | カテゴリ一覧取得 |
+| GET | `/api/v1/articles/authors` | 著者一覧取得 |
 | GET | `/api/v1/articles/search` | セマンティック検索 |
 | GET | `/api/v1/articles/embeddings/status` | 埋め込み生成進捗取得 |
 | GET | `/api/v1/articles/{id}` | 記事詳細取得 |
@@ -114,6 +115,17 @@
 **レスポンス**
 ```json
 ["AI", "Web開発", "データベース"]
+```
+
+---
+
+### GET `/api/v1/articles/authors`
+
+登録済みの著者一覧を取得する。フロントエンドの著者フィルターUIで使用する。
+
+**レスポンス**
+```json
+["山田太郎", "鈴木花子", "田中一郎"]
 ```
 
 ---
