@@ -2,13 +2,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Article, ArticleCreate, ArticleUpdate } from '@/types/article'
+import { Article, ArticleCreate, ArticleUpdate, EmbeddingStatus} from '@/types/article'
 import {
   getArticles,
   createArticle,
   updateArticle,
   deleteArticle,
   searchArticles,
+  getEmbeddingStatus,
 } from '@/lib/api'
 import ArticleCard from '@/app/components/ArticleCard'
 import ArticleModal from '@/app/components/ArticleModal'
@@ -23,11 +24,23 @@ export default function Home() {
   const [page, setPage] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [searchScores, setSearchScores] = useState<Record<number, number>>({})
+  const [searchedCount, setSearchedCount] = useState<number | null>(null)
+  const [totalHits, setTotalHits] = useState<number | null>(null)
+
+  {/* 検索の状態 */}
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchType, setSearchType] = useState<'keyword' | 'semantic' | null>(null)
+  const [searchThreshold, setSearchThreshold] = useState(0.5)
+  const [searchPage, setSearchPage] = useState(1)
+  const [isSearchMode, setIsSearchMode] = useState(false)
 
   {/* モーダルの状態 */}
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null)
   const [editArticle, setEditArticle] = useState<Article | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
+
+  {/* embedding生成進捗の状態 */}
+  const [embeddingStatus, setEmbeddingStatus] = useState<EmbeddingStatus | null>(null)
 
   const PAGE_SIZE = 20
 
@@ -40,6 +53,9 @@ export default function Home() {
       setArticles(data.articles)
       setTotal(data.total)
       setSearchScores({})
+      setSearchedCount(null)
+      setTotalHits(null)
+      setIsSearchMode(false)
     } catch (error) {
       console.error('記事の取得に失敗しました', error)
     } finally {
@@ -47,34 +63,99 @@ export default function Home() {
     }
   }, [])
 
-  {/* 初回レンダリング時に記事を取得する */}
-  useEffect(() => {
-    fetchArticles(page)
-  }, [page, fetchArticles])
-
-  {/* 検索処理 */}
-  const handleSearch = async (query: string, type: 'keyword' | 'semantic') => {
+{/* セマンティック検索結果を取得する */}
+  const fetchSearchResults = useCallback(async (
+    query: string,
+    threshold: number,
+    currentPage: number
+  ) => {
     setIsLoading(true)
     try {
-      if (type === 'semantic') {
-        const results = await searchArticles(query)
-        setArticles(results.map((r) => r.article))
-        setTotal(results.length)
-        const scores: Record<number, number> = {}
-        results.forEach((r) => { scores[r.article.id] = r.score })
-        setSearchScores(scores)
-      } else {
-        const data = await getArticles(1, PAGE_SIZE, undefined, undefined)
-        setArticles(data.articles.filter((a) =>
-          a.title.toLowerCase().includes(query.toLowerCase()) ||
-          a.content.toLowerCase().includes(query.toLowerCase())
-        ))
-        setSearchScores({})
-      }
+      const data = await searchArticles(query, threshold, PAGE_SIZE, currentPage)
+      setArticles(data.results.map((r) => r.article))
+      setTotalHits(data.total_hits)
+      setSearchedCount(data.searched)
+      const scores: Record<number, number> = {}
+      data.results.forEach((r) => { scores[r.article.id] = r.score })
+      setSearchScores(scores)
+      setIsSearchMode(true)
     } catch (error) {
       console.error('検索に失敗しました', error)
     } finally {
       setIsLoading(false)
+    }
+  }, [])
+
+  {/* キーワード検索結果を取得する */}
+  const fetchKeywordResults = useCallback(async (
+    query: string,
+    currentPage: number
+  ) => {
+    setIsLoading(true)
+    try {
+      const data = await getArticles(currentPage, PAGE_SIZE, undefined, undefined, query)
+      setArticles(data.articles)
+      setTotalHits(data.total)
+      setSearchScores({})
+      setSearchedCount(null)
+      setIsSearchMode(true)
+    } catch (error) {
+      console.error('キーワード検索に失敗しました', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  {/* 初回レンダリング時に記事を取得する */}
+  useEffect(() => {
+  if (!isSearchMode) {
+    fetchArticles(page)
+  }
+}, [page, fetchArticles, isSearchMode])
+
+
+  {/* 検索ページが変わったとき */}
+  useEffect(() => {
+    if (!isSearchMode || !searchQuery) return
+    if (searchType === 'keyword') {
+      fetchKeywordResults(searchQuery, searchPage)
+    } else if (searchType === 'semantic') {
+      fetchSearchResults(searchQuery, searchThreshold, searchPage)
+    }
+  }, [searchPage, isSearchMode, searchQuery, searchType, searchThreshold, fetchKeywordResults, fetchSearchResults])
+
+  {/* 5秒ごとにembedding進捗を自動更新する */}
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const status = await getEmbeddingStatus()
+        setEmbeddingStatus(status)
+      } catch (error) {
+        console.error('embedding状態の取得に失敗しました', error)
+      }
+    }
+
+    fetchStatus()
+    const interval = setInterval(fetchStatus, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  {/* 検索処理 */}
+  const handleSearch = async (
+    query: string,
+    type: 'keyword' | 'semantic',
+    threshold: number
+  ) => {
+    setSearchQuery(query)
+    setSearchType(type)
+    setSearchThreshold(threshold)
+    setSearchPage(1)
+    setIsSearchMode(true)
+
+    if (type === 'keyword') {
+      await fetchKeywordResults(query, 1)
+    } else {
+      await fetchSearchResults(query, threshold, 1)
     }
   }
 
@@ -144,12 +225,17 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* 検索バー */}
         <div className="mb-8">
-          <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+          <SearchBar onSearch={handleSearch} isLoading={isLoading} embeddingStatus={embeddingStatus} />
         </div>
 
         {/* 件数表示 */}
         <div className="mb-4 text-sm text-gray-500">
-          {total}件の記事
+          {isSearchMode && searchType === 'semantic' && searchedCount !== null
+            ? `${totalHits}件ヒット（${searchedCount}件を検索対象）`
+            : isSearchMode
+            ? `${totalHits}件ヒット`
+            : `${total}件の記事`
+          }
         </div>
 
         {/* ローディング */}
@@ -184,21 +270,27 @@ export default function Home() {
         )}
 
         {/* ページネーション */}
-        {!isLoading && total > PAGE_SIZE && (
+        {!isLoading && (isSearchMode ? (totalHits ?? 0) : total) > PAGE_SIZE && (
           <div className="flex justify-center gap-2 mt-8">
             <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
+              onClick={() => isSearchMode
+                ? setSearchPage((p) => Math.max(1, p - 1))
+                : setPage((p) => Math.max(1, p - 1))
+              }
+              disabled={(isSearchMode ? searchPage : page) === 1}
               className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors"
             >
               前へ
             </button>
             <span className="px-4 py-2 text-gray-600">
-              {page} / {Math.ceil(total / PAGE_SIZE)}
+              {isSearchMode ? searchPage : page} / {Math.ceil((isSearchMode ? (totalHits ?? 0) : total) / PAGE_SIZE)}
             </span>
             <button
-              onClick={() => setPage((p) => p + 1)}
-              disabled={page >= Math.ceil(total / PAGE_SIZE)}
+              onClick={() => isSearchMode
+                ? setSearchPage((p) => p + 1)
+                : setPage((p) => p + 1)
+              }
+              disabled={(isSearchMode ? searchPage : page) >= Math.ceil((isSearchMode ? (totalHits ?? 0) : total) / PAGE_SIZE)}
               className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition-colors"
             >
               次へ

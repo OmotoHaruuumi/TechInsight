@@ -4,25 +4,28 @@
 'use client'
 
 import { useState } from 'react'
+import { EmbeddingStatus } from '@/types/article'
 
 
 // 親コンポーネントから受け取るpropsの型定義
 // onSearch → 検索実行時に呼ぶ関数
 // isLoading → 検索中かどうか
 interface SearchBarProps {
-  onSearch: (query: string, type: 'keyword' | 'semantic') => void
+  onSearch: (query: string, type: 'keyword' | 'semantic', threshold: number) => void
   isLoading: boolean
+  embeddingStatus: EmbeddingStatus | null
 }
 
-export default function SearchBar({ onSearch, isLoading }: SearchBarProps) {
+export default function SearchBar({ onSearch, isLoading, embeddingStatus}: SearchBarProps) {
   const [query, setQuery] = useState('')
   const [searchType, setSearchType] = useState<'keyword' | 'semantic'>('keyword')
+  const [threshold, setThreshold] = useState(0.5)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // trimはpythonのstrip
     if (query.trim()) {
-      onSearch(query, searchType)
+      onSearch(query, searchType, threshold)
     }
   }
 
@@ -76,6 +79,53 @@ export default function SearchBar({ onSearch, isLoading }: SearchBarProps) {
             {isLoading ? '検索中...' : '検索'}
           </button>
         </div>
+
+         {/* セマンティック検索のオプション */}
+        {searchType === 'semantic' && (
+          <div className="flex flex-col gap-2 p-3 bg-purple-50 rounded-lg">
+            {/* 閾値スライダー */}
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-purple-700 font-medium whitespace-nowrap">
+                類似度の閾値: {threshold.toFixed(2)}
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={threshold}
+                onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                className="flex-1 accent-purple-600"
+              />
+              <div className="flex gap-2 text-xs text-purple-600">
+                <span>0.0 Loose</span>
+                <span>1.0 Strict</span>
+              </div>
+            </div>
+
+            {/* embedding生成進捗 */}
+            {embeddingStatus && (
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs text-purple-600">
+                  <span>
+                    検索対象: {embeddingStatus.completed}/{embeddingStatus.total}件
+                    （{embeddingStatus.percentage}%）
+                  </span>
+                  {embeddingStatus.percentage < 100 && (
+                    <span>生成中...</span>
+                  )}
+                </div>
+                {/* プログレスバー */}
+                <div className="w-full bg-purple-200 rounded-full h-1.5">
+                  <div
+                    className="bg-purple-600 h-1.5 rounded-full transition-all duration-500"
+                    style={{ width: `${embeddingStatus.percentage}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </form>
   )

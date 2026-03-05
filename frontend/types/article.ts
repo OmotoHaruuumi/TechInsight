@@ -41,3 +41,19 @@ export interface SearchResult {
   article: Article
   score: number
 }
+
+// セマンティック検索のレスポンス型
+export interface SearchResponse {
+  results: SearchResult[]
+  searched: number
+  total: number
+  total_hits: number
+  page: number
+}
+
+// embedding生成進捗の型
+export interface EmbeddingStatus {
+  total: number
+  completed: number
+  percentage: number
+}

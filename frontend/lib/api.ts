@@ -1,5 +1,5 @@
 // バックエンドAPIを呼び出す関数をまとめたファイル
-import { Article, ArticleListResponse, ArticleCreate, ArticleUpdate, SearchResult } from '@/types/article'
+import { Article, ArticleListResponse, ArticleCreate, ArticleUpdate, SearchResponse  } from '@/types/article'
 
 // 環境変数を使ってAPIのベースURLを取得する
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -23,7 +23,7 @@ async function fetchAPI<T>(
     // エラーのキャッチ
     if(!response.ok){
         const error = await response.json().catch(() => ({}))
-        throw new Error(error.detail || 'APIエラー: ${response.status}')
+        throw new Error(error.detail || `APIエラー: ${response.status}`)
     }
 
     // 空のときは個別対応
@@ -39,13 +39,15 @@ export async function getArticles(
   page: number = 1,
   size: number = 20,
   category?: string,
-  author?: string
+  author?: string,
+  q?: string
 ): Promise<ArticleListResponse> {
   const params = new URLSearchParams({
     page: page.toString(),
     size: size.toString(),
     ...(category && { category }),
     ...(author && { author }),
+    ...(q && { q }),
   })
   return fetchAPI<ArticleListResponse>(`/articles?${params}`)
 }
@@ -81,7 +83,25 @@ export async function deleteArticle(id: number): Promise<void> {
   })
 }
 
-// セマンティック検索（後で実装）
-export async function searchArticles(query: string): Promise<SearchResult[]> {
-  return fetchAPI<SearchResult[]>(`/articles/search?q=${encodeURIComponent(query)}`)
+export async function searchArticles(
+  query: string,
+  threshold: number = 0.5,
+  limit: number = 20,
+  page: number = 1
+): Promise<SearchResponse> {
+  const params = new URLSearchParams({
+    q: query,
+    threshold: threshold.toString(),
+    limit: limit.toString(),
+    page: page.toString(),
+  })
+  return fetchAPI<SearchResponse>(`/articles/search?${params}`)
+}
+
+export async function getEmbeddingStatus(): Promise<{
+  total: number
+  completed: number
+  percentage: number
+}> {
+  return fetchAPI('/articles/embeddings/status')
 }

@@ -23,6 +23,8 @@ class SearchResponse(BaseModel):
     results: List[SearchResult]
     searched: int
     total: int
+    total_hits: int
+    page: int
 
 # 現在どのくらいの割合embeddingが作られているかに必要な情報
 class EmbeddingStatus(BaseModel):
@@ -35,6 +37,7 @@ class EmbeddingStatus(BaseModel):
 def semantic_search(
     q: str = Query(..., min_length=1, description="検索クエリ"),
     limit: int = Query(20, ge=1, le=100, description="返す件数"),
+    page: int = Query(1, ge=1),       
     threshold: float = Query(0.5, ge=0.0, le=1.0, description="類似度の閾値（0.0〜1.0）"),
     db: Session = Depends(get_db)
 ):
@@ -63,13 +66,18 @@ def semantic_search(
             AND deleted_at IS NULL
             AND 1 - (embedding <=> CAST(:embedding AS vector)) >= :threshold
             ORDER BY embedding <=> CAST(:embedding AS vector)
-            LIMIT :limit
         """),
-        {"embedding": str(query_embedding),  "threshold": threshold, "limit": limit}
+        {"embedding": str(query_embedding), "threshold": threshold}
     ).fetchall()
 
-    # 記事の詳細を取得
-    article_ids = [r.id for r in results]
+    # Python側でページネーション
+    total_hits = len(results)
+    start = (page - 1) * limit
+    end = start + limit
+    paged_results = results[start:end]
+
+    # 記事の詳細を取得（ページ分のみ）
+    article_ids = [r.id for r in paged_results]
     scores = {r.id: r.score for r in results}
 
     articles = db.query(Article)\
@@ -86,6 +94,8 @@ def semantic_search(
         ],
         "searched": searched,
         "total": total,
+        "total_hits": total_hits,
+        "page": page,
     }
 
 @router.get("/embeddings/status", response_model=EmbeddingStatus)

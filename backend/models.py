@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, func
-from sqlalchemy.dialects.postgresql import ARRAY, FLOAT
 from pgvector.sqlalchemy import Vector
 from database import Base
 import datetime

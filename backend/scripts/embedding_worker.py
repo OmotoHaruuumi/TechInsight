@@ -45,11 +45,13 @@ def start_embedding_worker():
                          .limit(BATCH_SIZE)\
                          .all()
 
-            # 未生成の記事がなければ終了
+            # 未生成の記事がなければ60秒待って再チェック
             if not articles:
                 total = db.query(Article).filter(Article.deleted_at == None).count()
-                print(f"embedding生成完了: 全{total}件")
-                break
+                print(f"embedding生成完了: 全{total}件。新規記事を待機中...")
+                db.close()
+                time.sleep(60)
+                continue
 
             # BATCH_SIZE件分のテキストをまとめてembeddingに変換
             texts = [a.title + " " + a.content for a in articles]

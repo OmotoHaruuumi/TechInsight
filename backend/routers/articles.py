@@ -2,10 +2,12 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import Optional
 from database import get_db
 from models import Article
 from schemas import ArticleCreate, ArticleUpdate, ArticleResponse, ArticleListResponse
+import datetime
 
 #ここから下の処理はすべて http://localhost:8000/articles というURLの下にぶら下がるよ、という宣言
 router = APIRouter(
@@ -20,6 +22,7 @@ def get_articles(
     size: int = Query(20, ge=1, le=100), #このサイズは１ページあたりの記事件数
     category: Optional[str] = None,
     author: Optional[str] = None,
+    q: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     query = db.query(Article).filter(Article.deleted_at == None)
@@ -31,6 +34,15 @@ def get_articles(
     # 著者で絞り込み
     if author:
         query = query.filter(Article.author == author)
+
+    # キーワード検索：大文字小文字を区別せずタイトルまたは本文を検索
+    if q:
+        query = query.filter(
+            or_(
+                Article.title.ilike(f"%{q}%"),
+                Article.content.ilike(f"%{q}%")
+            )
+        )
 
     total = query.count()
 
@@ -105,7 +117,6 @@ def delete_article(article_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="記事が見つかりません")
 
     # 物理削除せず論理削除
-    import datetime
     db_article.deleted_at = datetime.datetime.utcnow()
     db.commit()
     return None
