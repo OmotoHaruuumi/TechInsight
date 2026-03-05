@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
-from typing import Optional
+from sqlalchemy import or_, asc, desc, nullslast
+from typing import Optional, List
 from database import get_db
 from models import Article
 from schemas import ArticleCreate, ArticleUpdate, ArticleResponse, ArticleListResponse
@@ -23,6 +23,9 @@ def get_articles(
     category: Optional[str] = None,
     author: Optional[str] = None,
     q: Optional[str] = None,
+    sort_by: Optional[str] = Query('created_at', pattern='^(created_at|published_at|title)$'),
+    order: Optional[str] = Query('desc', pattern='^(asc|desc)$'),
+    title_only: bool = Query(False),
     db: Session = Depends(get_db)
 ):
     query = db.query(Article).filter(Article.deleted_at == None)
@@ -35,18 +38,36 @@ def get_articles(
     if author:
         query = query.filter(Article.author == author)
 
-    # キーワード検索：大文字小文字を区別せずタイトルまたは本文を検索
+    # キーワード検索
     if q:
-        query = query.filter(
-            or_(
-                Article.title.ilike(f"%{q}%"),
-                Article.content.ilike(f"%{q}%")
+        if title_only:
+            # タイトルのみ
+            query = query.filter(Article.title.ilike(f"%{q}%"))
+        else:
+            # タイトルまたは本文（大文字小文字を区別せず）
+            query = query.filter(
+                or_(
+                    Article.title.ilike(f"%{q}%"),
+                    Article.content.ilike(f"%{q}%")
+                )
             )
-        )
 
     total = query.count()
 
-    articles = query.order_by(Article.created_at.desc())\
+    # 並べ替え
+    sort_col = {
+        'created_at': Article.created_at,
+        'published_at': Article.published_at,
+        'title': Article.title,
+    }.get(sort_by, Article.created_at)
+
+    if sort_by == 'published_at':
+        # nullを末尾へ
+        order_clause = nullslast(desc(sort_col)) if order == 'desc' else nullslast(asc(sort_col))
+    else:
+        order_clause = desc(sort_col) if order == 'desc' else asc(sort_col)
+
+    articles = query.order_by(order_clause)\
                     .offset((page - 1) * size)\
                     .limit(size)\
                     .all()
@@ -57,6 +78,16 @@ def get_articles(
         "page": page,
         "size": size
     }
+
+# カテゴリ一覧取得（/{article_id}より前に定義する必要がある）
+@router.get("/categories", response_model=List[str])
+def get_categories(db: Session = Depends(get_db)):
+    rows = db.query(Article.category)\
+             .filter(Article.deleted_at == None)\
+             .filter(Article.category != None)\
+             .distinct()\
+             .all()
+    return [r[0] for r in rows]
 
 # 記事1件取得
 @router.get("/{article_id}", response_model=ArticleResponse)

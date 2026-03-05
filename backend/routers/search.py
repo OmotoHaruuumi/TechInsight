@@ -6,7 +6,7 @@ from models import Article
 from schemas import ArticleResponse
 from scripts.embedding_worker import get_model, get_embedding_status
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 router = APIRouter(tags=["search"])
 
@@ -37,8 +37,9 @@ class EmbeddingStatus(BaseModel):
 def semantic_search(
     q: str = Query(..., min_length=1, description="検索クエリ"),
     limit: int = Query(20, ge=1, le=100, description="返す件数"),
-    page: int = Query(1, ge=1),       
+    page: int = Query(1, ge=1),
     threshold: float = Query(0.5, ge=0.0, le=1.0, description="類似度の閾値（0.0〜1.0）"),
+    category: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     # クエリをembeddingに変換
@@ -46,10 +47,12 @@ def semantic_search(
     query_embedding = embedding_model.encode([q])[0].tolist()
 
     # embedding生成済みの件数を取得
-    searched = db.query(Article)\
-                 .filter(Article.embedding != None)\
-                 .filter(Article.deleted_at == None)\
-                 .count()
+    searched_query = db.query(Article)\
+                       .filter(Article.embedding != None)\
+                       .filter(Article.deleted_at == None)
+    if category:
+        searched_query = searched_query.filter(Article.category == category)
+    searched = searched_query.count()
 
     total = db.query(Article)\
               .filter(Article.deleted_at == None)\
@@ -58,17 +61,23 @@ def semantic_search(
     # pgvectorのコサイン類似度演算子<=>で検索
     # <=> は コサイン距離（0に近いほど類似）
     # 1 - <=> でコサイン類似度（1に近いほど類似）に変換
-    results = db.execute(
-        text("""
-            SELECT id, 1 - (embedding <=> CAST(:embedding AS vector)) AS score
-            FROM articles
-            WHERE embedding IS NOT NULL
-            AND deleted_at IS NULL
-            AND 1 - (embedding <=> CAST(:embedding AS vector)) >= :threshold
-            ORDER BY embedding <=> CAST(:embedding AS vector)
-        """),
-        {"embedding": str(query_embedding), "threshold": threshold}
-    ).fetchall()
+    sql = """
+        SELECT id, 1 - (embedding <=> CAST(:embedding AS vector)) AS score
+        FROM articles
+        WHERE embedding IS NOT NULL
+        AND deleted_at IS NULL
+        AND 1 - (embedding <=> CAST(:embedding AS vector)) >= :threshold
+        {category_clause}
+        ORDER BY embedding <=> CAST(:embedding AS vector)
+    """
+    params = {"embedding": str(query_embedding), "threshold": threshold}
+    if category:
+        sql = sql.format(category_clause="AND category = :category")
+        params["category"] = category
+    else:
+        sql = sql.format(category_clause="")
+
+    results = db.execute(text(sql), params).fetchall()
 
     # Python側でページネーション
     total_hits = len(results)

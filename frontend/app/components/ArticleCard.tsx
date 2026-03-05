@@ -6,14 +6,28 @@ import { Article } from '@/types/article'
 interface ArticleCardProps {
   article: Article
   score?: number
+  keyword?: string
   onClick: (article: Article) => void
   onEdit: (article: Article) => void
   onDelete: (id: number) => void
 }
 
+// キーワードにマッチした部分を黄色ハイライトで返す
+function highlight(text: string, keyword: string) {
+  if (!keyword.trim()) return text
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'))
+  return parts.map((part, i) =>
+    new RegExp(`^${escaped}$`, 'i').test(part)
+      ? <mark key={i} className="bg-yellow-200 rounded px-0.5">{part}</mark>
+      : part
+  )
+}
+
 export default function ArticleCard({
   article,
   score,
+  keyword,
   onClick,
   onEdit,
   onDelete,
@@ -39,12 +53,12 @@ export default function ArticleCard({
 
       {/* タイトル */}
       <h2 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2">
-        {article.title}
+        {keyword ? highlight(article.title, keyword) : article.title}
       </h2>
 
       {/* 本文プレビュー */}
       <p className="text-sm text-gray-500 line-clamp-3 mb-4">
-        {article.content}
+        {keyword ? highlight(article.content, keyword) : article.content}
       </p>
 
       {/* フッター */}

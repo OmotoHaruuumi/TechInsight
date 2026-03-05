@@ -11,7 +11,7 @@ import { EmbeddingStatus } from '@/types/article'
 // onSearch → 検索実行時に呼ぶ関数
 // isLoading → 検索中かどうか
 interface SearchBarProps {
-  onSearch: (query: string, type: 'keyword' | 'semantic', threshold: number) => void
+  onSearch: (query: string, type: 'keyword' | 'semantic', threshold: number, titleOnly: boolean) => void
   isLoading: boolean
   embeddingStatus: EmbeddingStatus | null
 }
@@ -20,12 +20,13 @@ export default function SearchBar({ onSearch, isLoading, embeddingStatus}: Searc
   const [query, setQuery] = useState('')
   const [searchType, setSearchType] = useState<'keyword' | 'semantic'>('keyword')
   const [threshold, setThreshold] = useState(0.5)
+  const [titleOnly, setTitleOnly] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // trimはpythonのstrip
     if (query.trim()) {
-      onSearch(query, searchType, threshold)
+      onSearch(query, searchType, threshold, titleOnly)
     }
   }
 
@@ -79,6 +80,19 @@ export default function SearchBar({ onSearch, isLoading, embeddingStatus}: Searc
             {isLoading ? '検索中...' : '検索'}
           </button>
         </div>
+
+        {/* キーワード検索のオプション */}
+        {searchType === 'keyword' && (
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer w-fit">
+            <input
+              type="checkbox"
+              checked={titleOnly}
+              onChange={(e) => setTitleOnly(e.target.checked)}
+              className="rounded accent-blue-600"
+            />
+            タイトルのみ検索
+          </label>
+        )}
 
          {/* セマンティック検索のオプション */}
         {searchType === 'semantic' && (

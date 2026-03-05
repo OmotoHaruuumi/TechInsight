@@ -25,7 +25,7 @@ export default function ArticleModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto"
+        className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
         // モーダル本体をクリックしても背景のonCloseが発火しないようにする
         onClick={(e) => e.stopPropagation()}
       >
@@ -61,13 +61,13 @@ export default function ArticleModal({
         </div>
 
         {/* コンテンツ */}
-        <div className="px-6 py-5">
-          <h1 className="text-2xl font-bold text-gray-800 mb-3">
+        <div className="px-8 py-6">
+          <h1 className="text-3xl font-bold text-gray-800 mb-4 leading-snug">
             {article.title}
           </h1>
 
           {/* メタ情報 */}
-          <div className="flex gap-4 text-sm text-gray-500 mb-6">
+          <div className="flex gap-4 text-base text-gray-500 mb-8 border-b border-gray-100 pb-4">
             {article.author && <span>著者: {article.author}</span>}
             {article.published_at && (
               <span>
@@ -77,7 +77,7 @@ export default function ArticleModal({
           </div>
 
           {/* 本文 */}
-          <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+          <div className="text-base text-gray-700 leading-8 whitespace-pre-wrap">
             {article.content}
           </div>
         </div>

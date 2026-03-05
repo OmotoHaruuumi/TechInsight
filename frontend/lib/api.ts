@@ -40,7 +40,10 @@ export async function getArticles(
   size: number = 20,
   category?: string,
   author?: string,
-  q?: string
+  q?: string,
+  sortBy?: string,
+  order?: string,
+  titleOnly?: boolean,
 ): Promise<ArticleListResponse> {
   const params = new URLSearchParams({
     page: page.toString(),
@@ -48,8 +51,16 @@ export async function getArticles(
     ...(category && { category }),
     ...(author && { author }),
     ...(q && { q }),
+    ...(sortBy && { sort_by: sortBy }),
+    ...(order && { order }),
+    ...(titleOnly && { title_only: 'true' }),
   })
   return fetchAPI<ArticleListResponse>(`/articles?${params}`)
+}
+
+// カテゴリ一覧取得
+export async function getCategories(): Promise<string[]> {
+  return fetchAPI<string[]>('/articles/categories')
 }
 
 // 記事1件取得
@@ -87,13 +98,15 @@ export async function searchArticles(
   query: string,
   threshold: number = 0.5,
   limit: number = 20,
-  page: number = 1
+  page: number = 1,
+  category?: string,
 ): Promise<SearchResponse> {
   const params = new URLSearchParams({
     q: query,
     threshold: threshold.toString(),
     limit: limit.toString(),
     page: page.toString(),
+    ...(category && { category }),
   })
   return fetchAPI<SearchResponse>(`/articles/search?${params}`)
 }
