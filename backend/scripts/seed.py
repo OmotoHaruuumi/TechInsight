@@ -6,6 +6,7 @@ from datetime import datetime
 # backendディレクトリをパスに追加
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sqlalchemy import text
 from database import SessionLocal, engine, Base
 from models import Article
 
@@ -19,6 +20,10 @@ def parse_datetime(dt_str: str):
         return None
 
 def seed():
+    # pgvector拡張を有効化してからテーブルを作成する
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()
     # テーブルが存在しない場合は作成
     Base.metadata.create_all(bind=engine)
 
