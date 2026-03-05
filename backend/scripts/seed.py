@@ -30,13 +30,6 @@ def seed():
     db = SessionLocal()
 
     try:
-        # 既にデータが存在する場合はスキップ
-        # これによってdocker compose upを2回実行してもデータが重複しない
-        existing = db.query(Article).count()
-        if existing > 0:
-            print(f"既に{existing}件のデータが存在します。スキップします。")
-            return
-
         # CSVファイルのパスを取得
         csv_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -48,10 +41,18 @@ def seed():
             print(f"CSVファイルが見つかりません: {csv_path}")
             return
 
+        # 既存タイトルをセットで取得（重複チェックをO(1)で行う）
+        existing_titles = {
+            row[0] for row in db.query(Article.title).all()
+        }
+
         articles = []
         with open(csv_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
+                # 同じタイトルが既にDBにあればスキップ
+                if row["title"] in existing_titles:
+                    continue
                 article = Article(
                     title=row["title"],
                     content=row["content"],
@@ -61,11 +62,15 @@ def seed():
                 )
                 articles.append(article)
 
+        if not articles:
+            print("新規データはありません。スキップします。")
+            return
+
         # バルクインサートで一括登録することでDBアクセスを数回で済ます
         db.bulk_save_objects(articles)
         db.commit()
 
-        print(f"{len(articles)}件のデータをインポートしました。")
+        print(f"{len(articles)}件の新規データをインポートしました。")
 
     except Exception as e:
         db.rollback()
