@@ -1,6 +1,7 @@
 import csv
 import sys
 import os
+import hashlib
 from datetime import datetime
 
 # backendディレクトリをパスに追加
@@ -41,17 +42,21 @@ def seed():
             print(f"CSVファイルが見つかりません: {csv_path}")
             return
 
-        # 既存タイトルをセットで取得（重複チェックをO(1)で行う）
-        existing_titles = {
-            row[0] for row in db.query(Article.title).all()
+        # 既存記事の（タイトル+本文+著者）ハッシュをセットで取得（重複チェックをO(1)で行う）
+        existing_hashes = {
+            hashlib.sha256((row[0] + row[1] + (row[2] or "")).encode()).hexdigest()
+            for row in db.query(Article.title, Article.content, Article.author).all()
         }
 
         articles = []
         with open(csv_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                # 同じタイトルが既にDBにあればスキップ
-                if row["title"] in existing_titles:
+                # 同じ（タイトル+本文+著者）の記事が既にDBにあればスキップ
+                row_hash = hashlib.sha256(
+                    (row["title"] + row["content"] + (row["author"] or "")).encode()
+                ).hexdigest()
+                if row_hash in existing_hashes:
                     continue
                 article = Article(
                     title=row["title"],
